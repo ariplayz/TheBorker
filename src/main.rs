@@ -216,12 +216,22 @@ async fn game_loop() {
         // Secret exit shortcut F5 + F8
         if is_key_down(KeyCode::F5) && is_key_down(KeyCode::F8) {
             return_items();
+            HOOK_ACTIVE.store(false, Ordering::SeqCst);
+            if hook != 0 {
+                unsafe { UnhookWindowsHookEx(hook) };
+            }
             let _ = fs::File::create(success_file);
             break;
         }
 
         // Prevent accidental escape during puzzles
         if is_key_pressed(KeyCode::Escape) && matches!(state, State::Success) {
+            HOOK_ACTIVE.store(false, Ordering::SeqCst);
+            if hook != 0 {
+                unsafe { UnhookWindowsHookEx(hook) };
+            }
+            let _ = fs::File::create(success_file);
+            let _ = fs::remove_file(state_file);
             break;
         }
 
@@ -380,14 +390,6 @@ async fn game_loop() {
                 draw_text("SYSTEM RESTORED. FILES UNLOCKED.", 20.0, 160.0, 30.0, WHITE);
                 draw_text("THANK YOU FOR PLAYING THE BORKER.", 20.0, 220.0, 25.0, YELLOW);
                 draw_text("PRESS [ESCAPE] TO EXIT.", 20.0, 300.0, 20.0, WHITE);
-                if is_key_pressed(KeyCode::Escape) {
-                    HOOK_ACTIVE.store(false, Ordering::SeqCst);
-                    if hook != 0 {
-                        unsafe { UnhookWindowsHookEx(hook) };
-                    }
-                    let _ = fs::File::create(success_file);
-                    let _ = fs::remove_file(state_file);
-                }
             }
         }
 
