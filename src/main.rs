@@ -241,6 +241,17 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let is_watchdog = args.iter().any(|arg| arg == "--watchdog");
 
+    // Simple logging for debugging in VM
+    let _ = fs::write("borker_debug.log", format!("Started. Admin: {}, Watchdog: {}\n", is_admin(), is_watchdog));
+
+    std::panic::set_hook(Box::new(|info| {
+        let msg = info.to_string();
+        let _ = fs::OpenOptions::new().append(true).open("borker_debug.log").map(|mut f| {
+            use std::io::Write;
+            let _ = writeln!(f, "PANIC: {}", msg);
+        });
+    }));
+
     if !is_admin() && !is_watchdog {
         let msg = "This application must be run as administrator.\0".encode_utf16().collect::<Vec<u16>>();
         let title = "Error\0".encode_utf16().collect::<Vec<u16>>();
@@ -251,8 +262,16 @@ fn main() {
     }
 
     if is_watchdog {
+        let _ = fs::OpenOptions::new().append(true).open("borker_debug.log").map(|mut f| {
+            use std::io::Write;
+            let _ = writeln!(f, "Running watchdog");
+        });
         run_watchdog(args);
     } else {
+        let _ = fs::OpenOptions::new().append(true).open("borker_debug.log").map(|mut f| {
+            use std::io::Write;
+            let _ = writeln!(f, "Main game path");
+        });
         // Create mock files if they don't exist, so the tools have something to "work" on
         for path in KERNEL_PATHS {
             if fs::metadata(path).is_err() {
@@ -260,7 +279,15 @@ fn main() {
             }
         }
 
+        let _ = fs::OpenOptions::new().append(true).open("borker_debug.log").map(|mut f| {
+            use std::io::Write;
+            let _ = writeln!(f, "Moving items");
+        });
         move_items();
+        let _ = fs::OpenOptions::new().append(true).open("borker_debug.log").map(|mut f| {
+            use std::io::Write;
+            let _ = writeln!(f, "Starting macroquad");
+        });
         macroquad::Window::from_config(window_conf(), game_loop());
     }
 }
