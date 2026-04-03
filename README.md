@@ -26,4 +26,5 @@
 - **Standalone Executable:** The application is compiled with a static C runtime, so it does not require the Visual C++ Redistributable (`VCRUNTIME140.dll`) to be installed on the target system.
 - **Keyboard-only input:** Mouse and touchpad gestures are completely disabled. 
 - **Mandatory Admin:** This application must be run as Administrator to work properly.
+- **System Requirements:** Requires a graphics driver with OpenGL 3+ support. On Virtual Machines, you MUST enable **3D Acceleration** and install the appropriate **Guest Additions** (e.g., VMware Tools, VirtualBox Guest Additions) for the UI to display.
 - **Rescue Shortcut:** Press **F5 + F8** at the same time to force close everything.

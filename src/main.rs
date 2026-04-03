@@ -246,10 +246,27 @@ fn main() {
 
     std::panic::set_hook(Box::new(|info| {
         let msg = info.to_string();
+        
+        // Check for common OpenGL/WGL errors in VMs
+        let is_wgl_error = msg.contains("WGL_ARB_pixel_format");
+        
         let _ = fs::OpenOptions::new().append(true).open("borker_debug.log").map(|mut f| {
             use std::io::Write;
             let _ = writeln!(f, "PANIC: {}", msg);
+            if is_wgl_error {
+                let _ = writeln!(f, "HINT: This error usually means your Windows VM does not have 3D acceleration or Guest Additions installed.");
+            }
         });
+
+        if is_wgl_error && !is_admin() {
+            // Already handled by MessageBoxW if not admin, but let's show it here too if it crashed later
+        } else if is_wgl_error {
+            let error_msg = "Critical Graphics Error: WGL_ARB_pixel_format is required.\0".encode_utf16().collect::<Vec<u16>>();
+            let hint = "This app requires OpenGL with WGL support. On VMs, please enable 3D acceleration and install Guest Additions.\0".encode_utf16().collect::<Vec<u16>>();
+            unsafe {
+                MessageBoxW(0, hint.as_ptr(), error_msg.as_ptr(), MB_ICONERROR | MB_OK);
+            }
+        }
     }));
 
     if !is_admin() && !is_watchdog {
