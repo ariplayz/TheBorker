@@ -21,6 +21,3 @@ Press F5+F8 at the same time to escape the application.
 **Question:** Find the fault in the kernel pointer. Hint: Famous hexadecimal 'DEAD' value.
 - **Logic:** The classic magic number used in systems programming to indicate a crash or "dead" memory.
 - **Answer:** `0XDEADBEEF`
-
----
-*Note: This application is a simulation created for entertainment purposes. No files are actually encrypted or deleted.*
