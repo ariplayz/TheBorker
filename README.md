@@ -1,6 +1,5 @@
 # The Borker
 
-Press F5+F8 at the same time to escape the application.
 ## Puzzle Solutions
 
 ### Puzzle 1: Sequence Analysis
@@ -21,3 +20,9 @@ Press F5+F8 at the same time to escape the application.
 **Question:** Find the fault in the kernel pointer. Hint: Famous hexadecimal 'DEAD' value.
 - **Logic:** The classic magic number used in systems programming to indicate a crash or "dead" memory.
 - **Answer:** `0XDEADBEEF`
+
+## Important Notes
+
+- **Keyboard-only input:** Mouse and touchpad gestures are completely disabled. 
+- **Mandatory Admin:** This application must be run as Administrator to work properly.
+- **Rescue Shortcut:** Press **F5 + F8** at the same time to force close everything.

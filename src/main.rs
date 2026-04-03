@@ -9,10 +9,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, WH_KEYBOARD_LL, KBDLLHOOKSTRUCT,
     WH_MOUSE_LL, MessageBoxW, MB_ICONERROR, MB_OK,
+    SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, FindWindowW, SetForegroundWindow,
 };
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    VK_LWIN, VK_RWIN, VK_TAB, VK_ESCAPE, VK_F4, VK_CONTROL, VK_SHIFT, VK_F5, VK_F8, VK_APPS,
-    GetAsyncKeyState,
+    VK_LWIN, VK_RWIN, VK_TAB, VK_ESCAPE, VK_F4, VK_CONTROL, VK_SHIFT, VK_APPS,
+    VK_MENU, VK_LMENU, VK_RMENU, VK_LCONTROL, VK_RCONTROL, VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT,
+    VK_PRIOR, VK_NEXT, VK_HOME, VK_END, VK_F1, VK_F2, VK_F3, VK_F6, VK_F7, VK_F9, VK_F10,
+    VK_F11, VK_F12, GetAsyncKeyState,
 };
 use windows_sys::Win32::Foundation::{LRESULT, WPARAM, LPARAM, HINSTANCE};
 use windows_sys::Win32::Storage::FileSystem::{
@@ -26,8 +29,27 @@ unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARA
         let kbd = unsafe { *(lparam as *const KBDLLHOOKSTRUCT) };
         let vk = kbd.vkCode as u16;
 
-        // Block Windows keys, Context Menu key, and TAB entirely to prevent app switching/gestures
+        // Block Windows keys, Context Menu key, and TAB entirely
         if vk == VK_LWIN || vk == VK_RWIN || vk == VK_APPS || vk == VK_TAB {
+            return 1;
+        }
+
+        // Block Alt and Ctrl keys entirely to prevent gestures/shortcuts
+        if vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU ||
+           vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL {
+            return 1;
+        }
+
+        // Block arrow keys and navigation keys which are often used in gestures
+        if vk == VK_UP || vk == VK_DOWN || vk == VK_LEFT || vk == VK_RIGHT ||
+           vk == VK_PRIOR || vk == VK_NEXT || vk == VK_HOME || vk == VK_END {
+            return 1;
+        }
+
+        // Block most function keys except F5 and F8
+        if vk == VK_F1 || vk == VK_F2 || vk == VK_F3 || vk == VK_F4 ||
+           vk == VK_F6 || vk == VK_F7 || vk == VK_F9 || vk == VK_F10 ||
+           vk == VK_F11 || vk == VK_F12 {
             return 1;
         }
 
@@ -46,13 +68,6 @@ unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARA
             if ctrl_down && shift {
                 return 1;
             }
-        }
-
-        // Secret exit check
-        let f5 = (unsafe { GetAsyncKeyState(VK_F5 as i32) } as u16 & 0x8000) != 0;
-        let f8 = (unsafe { GetAsyncKeyState(VK_F8 as i32) } as u16 & 0x8000) != 0;
-        if f5 && f8 {
-            // Handled by main loop
         }
     }
     unsafe { CallNextHookEx(0, code, wparam, lparam) }
@@ -323,6 +338,9 @@ async fn game_loop() {
     let mut input_buffer = String::new();
     let mut message = String::new();
     let mut watchdog_check_timer = 0.0;
+    let mut focus_timer = 0.0;
+    let title_wide: Vec<u16> = "The Borker - SYSTEM COMPROMISED\0".encode_utf16().collect();
+    let mut hwnd = 0;
 
     let sol1 = "55";
     let sol2 = "BITF";
@@ -330,6 +348,24 @@ async fn game_loop() {
 
     loop {
         clear_background(BLACK);
+
+        if hwnd == 0 {
+            hwnd = unsafe { FindWindowW(std::ptr::null(), title_wide.as_ptr()) };
+        }
+
+        let time = get_time();
+        let delta = get_frame_time();
+
+        focus_timer += delta;
+        if focus_timer > 0.5 {
+            focus_timer = 0.0;
+            if hwnd != 0 && !matches!(state, State::Success) {
+                unsafe {
+                    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+                    SetForegroundWindow(hwnd);
+                }
+            }
+        }
 
         // Secret exit shortcut F5 + F8
         if is_key_down(KeyCode::F5) && is_key_down(KeyCode::F8) {
@@ -364,9 +400,6 @@ async fn game_loop() {
             let _ = fs::remove_file(&watchdog_path);
             break;
         }
-
-        let time = get_time();
-        let delta = get_frame_time();
 
         watchdog_check_timer += delta;
         if watchdog_check_timer > 2.0 {
