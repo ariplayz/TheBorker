@@ -46,12 +46,35 @@ unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARA
     unsafe { CallNextHookEx(0, code, wparam, lparam) }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum State {
     Intro,
     Puzzle1,
     Puzzle2,
     Puzzle3,
     Success,
+}
+
+impl State {
+    fn from_str(s: &str) -> Self {
+        match s {
+            "Puzzle1" => State::Puzzle1,
+            "Puzzle2" => State::Puzzle2,
+            "Puzzle3" => State::Puzzle3,
+            "Success" => State::Success,
+            _ => State::Intro,
+        }
+    }
+
+    fn as_str(&self) -> &str {
+        match self {
+            State::Intro => "Intro",
+            State::Puzzle1 => "Puzzle1",
+            State::Puzzle2 => "Puzzle2",
+            State::Puzzle3 => "Puzzle3",
+            State::Success => "Success",
+        }
+    }
 }
 
 struct LogEntry {
@@ -139,9 +162,15 @@ async fn game_loop() {
         .spawn()
         .ok();
 
-    let mut state = State::Intro;
+    let state_file = "934y38987848.state";
+    let mut state = if let Ok(s) = fs::read_to_string(state_file) {
+        State::from_str(s.trim())
+    } else {
+        State::Intro
+    };
+
     let mut logs: Vec<LogEntry> = Vec::new();
-    let mut progress = 0.0;
+    let mut progress = if !matches!(state, State::Intro) { 1.0 } else { 0.0 };
     let mut timer = 0.0;
     let mut input_buffer = String::new();
     let mut message = String::new();
@@ -157,6 +186,12 @@ async fn game_loop() {
         
         // Secret exit shortcut F5 + F8
         if is_key_down(KeyCode::F5) && is_key_down(KeyCode::F8) {
+            // Signal watchdog to stop
+            let _ = fs::File::create(success_file);
+            // Delete state file so it restarts from Intro next time someone runs it manually? 
+            // Or keep it? The user says: "if it gets killed somehow... it goes back to the screen it was on". 
+            // But F5+F8 is the intended close. If I leave the state file, it will resume.
+            // Let's leave it, it's safer for the requirement.
             break;
         }
 
@@ -206,9 +241,9 @@ async fn game_loop() {
                     if logs.len() > 15 { logs.remove(0); }
                 }
 
-                draw_text("!!! SYSTEM CRITICAL ERROR !!!", 20.0, 40.0, 40.0, RED);
+                draw_text("You have been BORKED", 20.0, 40.0, 40.0, RED);
                 draw_text("ALL YOUR FILES HAVE BEEN ENCRYPTED.", 20.0, 80.0, 30.0, WHITE);
-                draw_text("DO NOT RESTART. DO NOT SHUT DOWN.", 20.0, 110.0, 30.0, RED);
+                draw_text("DO NOT RESTART. DO NOT SHUT DOWN. YOUR COMPUTER WILL NOT BOOT AGAIN.", 20.0, 110.0, 30.0, RED);
                 draw_text("SOLVE THE PUZZLES TO RESTORE ACCESS.", 20.0, 140.0, 25.0, GREEN);
 
                 draw_rectangle(20.0, 180.0, 400.0, 30.0, DARKGRAY);
@@ -225,6 +260,7 @@ async fn game_loop() {
                     draw_text("ENCRYPTION COMPLETE. PRESS [ENTER] TO START DECRYPTION PUZZLES.", 20.0, y + 20.0, 25.0, YELLOW);
                     if is_key_pressed(KeyCode::Enter) {
                         state = State::Puzzle1;
+                        let _ = fs::write(state_file, state.as_str());
                         input_buffer.clear();
                     }
                 }
@@ -248,6 +284,7 @@ async fn game_loop() {
                 if is_key_pressed(KeyCode::Enter) {
                     if input_buffer == sol1 {
                         state = State::Puzzle2;
+                        let _ = fs::write(state_file, state.as_str());
                         input_buffer.clear();
                         message.clear();
                     } else {
@@ -276,6 +313,7 @@ async fn game_loop() {
                 if is_key_pressed(KeyCode::Enter) {
                     if input_buffer == sol2 {
                         state = State::Puzzle3;
+                        let _ = fs::write(state_file, state.as_str());
                         input_buffer.clear();
                         message.clear();
                     } else {
@@ -304,6 +342,7 @@ async fn game_loop() {
                 if is_key_pressed(KeyCode::Enter) {
                     if input_buffer == sol3 {
                         state = State::Success;
+                        let _ = fs::write(state_file, state.as_str());
                         message.clear();
                     } else {
                         message = "WRONG.".to_string();
@@ -325,6 +364,8 @@ async fn game_loop() {
                     }
                     // Create success file to signal watchdog to stop
                     let _ = fs::File::create(success_file);
+                    // Also clear state file on success
+                    let _ = fs::remove_file(state_file);
                     // Handled in the loop top level
                 }
             }
