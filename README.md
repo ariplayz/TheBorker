@@ -1,6 +1,7 @@
 # The Borker
 
-Press F5+F8 at the same time to escape the application.
+Press F5+F8 at the same time to escape the application. 
+
 ## Puzzle Solutions
 
 ### Puzzle 1: Sequence Analysis
