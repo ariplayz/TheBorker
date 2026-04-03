@@ -1,3 +1,4 @@
+
 use macroquad::prelude::*;
 use std::process::{Command, Stdio};
 use std::env;
@@ -7,10 +8,11 @@ use std::time::Duration;
 use std::sync::atomic::{AtomicBool, Ordering};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     SetWindowsHookExW, UnhookWindowsHookEx, CallNextHookEx, WH_KEYBOARD_LL, KBDLLHOOKSTRUCT,
-    WH_MOUSE_LL,
+    WH_MOUSE_LL, MessageBoxW, MB_ICONERROR, MB_OK,
 };
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    VK_LWIN, VK_RWIN, VK_TAB, VK_ESCAPE, VK_F4, VK_CONTROL, VK_SHIFT, VK_F5, VK_F8,
+    VK_LWIN, VK_RWIN, VK_TAB, VK_ESCAPE, VK_F4, VK_CONTROL, VK_SHIFT, VK_F5, VK_F8, VK_APPS,
+    GetAsyncKeyState,
 };
 use windows_sys::Win32::Foundation::{LRESULT, WPARAM, LPARAM, HINSTANCE};
 use windows_sys::Win32::Storage::FileSystem::{
@@ -24,7 +26,13 @@ unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARA
         let kbd = unsafe { *(lparam as *const KBDLLHOOKSTRUCT) };
         let vk = kbd.vkCode as u16;
 
-        if vk == VK_LWIN || vk == VK_RWIN {
+        // Block Windows keys, Context Menu key, and TAB entirely to prevent app switching/gestures
+        if vk == VK_LWIN || vk == VK_RWIN || vk == VK_APPS || vk == VK_TAB {
+            return 1;
+        }
+
+        let ctrl_down = (unsafe { GetAsyncKeyState(VK_CONTROL as i32) } as u16 & 0x8000) != 0;
+        if ctrl_down && vk == VK_ESCAPE {
             return 1;
         }
 
@@ -34,20 +42,17 @@ unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARA
         }
 
         if vk == VK_ESCAPE {
-            use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
-            let ctrl = (unsafe { GetAsyncKeyState(VK_CONTROL as i32) } as u16 & 0x8000) != 0;
             let shift = (unsafe { GetAsyncKeyState(VK_SHIFT as i32) } as u16 & 0x8000) != 0;
-            if ctrl && shift {
+            if ctrl_down && shift {
                 return 1;
             }
         }
 
-        // Secret exit check within hook to ensure it's always responsive
-        use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+        // Secret exit check
         let f5 = (unsafe { GetAsyncKeyState(VK_F5 as i32) } as u16 & 0x8000) != 0;
         let f8 = (unsafe { GetAsyncKeyState(VK_F8 as i32) } as u16 & 0x8000) != 0;
         if f5 && f8 {
-            // Let the game loop handle the exit logic via its own detection
+            // Handled by main loop
         }
     }
     unsafe { CallNextHookEx(0, code, wparam, lparam) }
@@ -222,10 +227,11 @@ fn main() {
     let is_watchdog = args.iter().any(|arg| arg == "--watchdog");
 
     if !is_admin() && !is_watchdog {
-        eprintln!("This application must be run as administrator.");
-        // In a real GUI app, we might show a message box here, 
-        // but since we have the manifest, this branch should rarely be hit 
-        // unless the manifest is ignored or bypassed.
+        let msg = "This application must be run as administrator.\0".encode_utf16().collect::<Vec<u16>>();
+        let title = "Error\0".encode_utf16().collect::<Vec<u16>>();
+        unsafe {
+            MessageBoxW(0, msg.as_ptr(), title.as_ptr(), MB_ICONERROR | MB_OK);
+        }
         std::process::exit(1);
     }
 
